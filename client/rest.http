@@ -1,0 +1,65 @@
+@baseUrl = http://localhost:8080
+@samplePassword = Passw0rd!
+@sampleUsername = demo-user-{{$timestamp}}
+@sampleEmail = {{$guid}}@example.com
+
+### Health check
+GET {{baseUrl}}/health
+
+### Register
+# @name register
+POST {{baseUrl}}/api/auth/register
+Content-Type: application/json
+
+{
+  "username": "{{sampleUsername}}",
+  "email": "{{sampleEmail}}",
+  "password": "{{samplePassword}}"
+}
+
+### Login
+# @name login
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{sampleUsername}}",
+  "password": "{{samplePassword}}"
+}
+
+@authToken = {{login.response.body.token}}
+@userId = {{login.response.body.user.id}}
+
+### Create conversation (replace participantId with another user ID)
+# @name createConversation
+POST {{baseUrl}}/api/conversations
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+  "participantId": "REPLACE_WITH_OTHER_USER_ID"
+}
+
+@conversationId = {{createConversation.response.body._id}}
+
+### List my conversations
+GET {{baseUrl}}/api/conversations
+Authorization: Bearer {{authToken}}
+
+### Fetch single conversation
+GET {{baseUrl}}/api/conversations/{{conversationId}}
+Authorization: Bearer {{authToken}}
+
+### Send message
+POST {{baseUrl}}/api/messages
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+  "conversationId": "{{conversationId}}",
+  "text": "Hello from REST client!"
+}
+
+### List messages for a conversation
+GET {{baseUrl}}/api/messages/{{conversationId}}
+Authorization: Bearer {{authToken}}
