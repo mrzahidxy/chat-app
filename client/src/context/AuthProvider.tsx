@@ -1,6 +1,7 @@
 import {
   createContext,
   useEffect,
+  useMemo,
   useReducer,
   type Dispatch,
   type PropsWithChildren,
@@ -8,46 +9,39 @@ import {
 import type {
   AuthAction,
   AuthContextValue,
-  AuthResponse,
   AuthState,
 } from "../types/auth";
 import type { AuthenticatedUser } from "../types/user";
+import {
+  clearStoredUser,
+  loadStoredUser,
+  saveStoredUser,
+} from "../utils/authStorage";
+import { setUnauthorizedHandler } from "../utils/requestMethod";
 
-type RawUserPayload =
-  | AuthResponse
-  | (Partial<AuthenticatedUser> & {
-      user?: Partial<AuthenticatedUser> | null;
-      accessToken?: string;
-      id?: string;
-      userId?: string;
-    })
-  | null
-  | undefined;
+type UserLike = {
+  _id?: string;
+  id?: string;
+  userId?: string;
+  username?: string;
+  email?: string;
+  token?: string;
+  accessToken?: string;
+  user?: UserLike | null;
+};
+
+type RawUserPayload = UserLike | null;
 
 const formatUser = (payload: RawUserPayload): AuthenticatedUser | null => {
   if (!payload) {
     return null;
   }
 
-  const userData =
-    typeof payload === "object" && "user" in payload && payload.user
-      ? payload.user
-      : payload;
-
-  const token =
-    (payload as AuthenticatedUser)?.token ||
-    (payload as { accessToken?: string })?.accessToken ||
-    (payload as AuthResponse)?.token ||
-    null;
-
-  const normalizedId =
-    (userData as AuthenticatedUser | undefined)?._id ||
-    (userData as { id?: string })?.id ||
-    (userData as { userId?: string })?.userId ||
-    null;
-
-  const username = (userData as AuthenticatedUser | undefined)?.username;
-  const email = (userData as AuthenticatedUser | undefined)?.email;
+  const userData = payload.user ?? payload;
+  const token = payload.token ?? payload.accessToken ?? null;
+  const normalizedId = userData._id ?? userData.id ?? userData.userId ?? null;
+  const username = userData.username ?? null;
+  const email = userData.email ?? null;
 
   if (!token || !normalizedId || !username || !email) {
     return null;
@@ -61,19 +55,9 @@ const formatUser = (payload: RawUserPayload): AuthenticatedUser | null => {
   };
 };
 
-const loadInitialUser = (): AuthenticatedUser | null => {
-  try {
-    const stored = localStorage.getItem("currentUser");
-    return stored ? formatUser(JSON.parse(stored)) : null;
-  } catch {
-    localStorage.removeItem("currentUser");
-    return null;
-  }
-};
-
-const InitialState: AuthState = {
-  currentUser: loadInitialUser(),
-};
+const getInitialState = (): AuthState => ({
+  currentUser: formatUser(loadStoredUser()),
+});
 
 const AuthReducer = (state: AuthState, action: AuthAction): AuthState => {
   switch (action.type) {
@@ -87,23 +71,39 @@ const AuthReducer = (state: AuthState, action: AuthAction): AuthState => {
 };
 
 export const AuthContext = createContext<AuthContextValue>({
-  currentUser: InitialState.currentUser,
+  currentUser: null,
   dispatch: (() => undefined) as Dispatch<AuthAction>,
 });
 
 export const AuthProvider = ({ children }: PropsWithChildren) => {
-  const [state, dispatch] = useReducer(AuthReducer, InitialState);
+  const [state, dispatch] = useReducer(AuthReducer, undefined, getInitialState);
+
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      dispatch({ type: "LOGOUT" });
+    });
+
+    return () => {
+      setUnauthorizedHandler(null);
+    };
+  }, [dispatch]);
 
   useEffect(() => {
     if (state.currentUser) {
-      localStorage.setItem("currentUser", JSON.stringify(state.currentUser));
+      saveStoredUser(state.currentUser);
     } else {
-      localStorage.removeItem("currentUser");
+      clearStoredUser();
     }
   }, [state.currentUser]);
 
+  const value = useMemo(
+    () => ({ currentUser: state.currentUser, dispatch }),
+    [state.currentUser, dispatch]
+  );
+
+
   return (
-    <AuthContext.Provider value={{ currentUser: state.currentUser, dispatch }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );
