@@ -9,7 +9,7 @@ import Message from "./models/message";
 dotenv.config();
 
 const MONGO_URI =
-  process.env.MONGO_URI || "mongodb://127.0.0.1:27017/messaging-app";
+  process.env.MONGO_URI || "mongodb://127.0.0.1:27017/chat-app";
 
 interface SeedUser {
   username: string;

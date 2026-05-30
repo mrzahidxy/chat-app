@@ -1,0 +1,58 @@
+name: Deploy Chat API
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "api/**"
+      - ".github/workflows/vps-api.yml"
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./api
+          file: ./api/Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/chat-api:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/chat-api:${{ github.sha }}
+          platforms: linux/amd64
+
+      - name: Deploy on VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/chat-api:latest
+            docker stop chat-api || true
+            docker rm chat-api || true
+            docker run -d \
+              --name chat-api \
+              --restart unless-stopped \
+              -p 8084:8084 \
+              --env-file /opt/chat-api/.env \
+              ${{ secrets.DOCKERHUB_USERNAME }}/chat-api:latest
+            docker image prune -f
+            curl -fsS http://127.0.0.1:8084/health
+            if [ -n "${{ secrets.API_HEALTHCHECK_URL }}" ]; then
+              curl -fsS "${{ secrets.API_HEALTHCHECK_URL }}"
+            fi
