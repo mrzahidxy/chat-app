@@ -23,7 +23,7 @@ app.use("/api/messages", messageRoutes);
 app.use("/api/upload", uploadRoutes);
 
 app.get("/health", (_req: Request, res: Response) => {
-  res.json({ status: "ok" });
+  res.status(200).json({ status: "ok" });
 });
 
 export default app;

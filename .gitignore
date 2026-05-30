@@ -13,8 +13,14 @@ Thumbs.db
 
 # Env files
 .env
+.env.*
+!.env.example
 api/.env
+api/.env.*
+!api/.env.example
 client/.env
+client/.env.*
+!client/.env.example
 
 # Node modules
 node_modules
@@ -22,11 +28,14 @@ api/node_modules
 client/node_modules
 
 # Build outputs
+dist
+build
 api/dist
 client/dist
 
 # Vite/coverage caches
 .vite
 coverage
+logs
 
 .vercel
